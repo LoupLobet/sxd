@@ -1,0 +1,110 @@
+.TH SXD 1 SXD\-VERSION
+.SH NAME
+sxd \- Simple X Displayer
+.SH SYNOPSIS
+.B sxd
+.RB [ \-aw ]
+.RB [ \-ah ]
+.RB [ \-hl | \-hc | \-hr ]
+.RB [ \-s ]
+.RB [ \-vt | \-vc | \-vb ]
+.RB [ \-v ]
+.RB [ \-1
+.IR retstr ]
+.RB [ \-2
+.IR retstr ]
+.RB [ \-3
+.IR retstr ]
+.RB [ \-bd
+.IR color ]
+.RB [ \-bg
+.IR color ]
+.RB [ \-fg
+.IR color ]
+.RB [ \-fm
+.IR font ]
+.RB [ \-g
+.IR pixel ]
+.RB [ \-t
+.IR sec ]
+.RB [ \-x
+.IR pixel ]
+.RB [ \-y
+.IR pixel ]
+.RB [ \-w
+.IR pixel ]
+.RB [ \-h
+.IR pixel ]
+.SH DESCRIPTION
+.B sxd
+is a text displayer for X, which reads some text lines from standard input,
+and prints them in a floating window. When a mouse button is pressed in the created window,
+a chosen string is printed in the standard output accordingly to the mouse button
+(i.e. mouse1, mouse2 or mouse3).
+
+.B sxd
+terminates after a mouse button is pressed without a specified mask (see config.h: WMMASK macro), or after a specified time in (s).
+
+.B sxd
+can be configured with config.h - for default options - or using the command
+line options for more specific cases.
+.SH OPTIONS
+.TP
+.B \-aw
+Adapt the window width to fit the text.
+.TP
+.B \-ah
+Adapt the window height to fit the text.
+.TP
+.B \-hl | \-hc | \-hr
+Sets the horizontal reference to the left | the center | the right.
+.TP
+.B \-s
+Keep window with static size and coordinates.
+.TP
+.B \-v
+Prints the sxd version.
+.TP
+.B \-vt | \-vc | \-vb
+Sets the vertical reference to the top | the center | the bottom.
+.TP
+.BI \-1 " return string"
+Sets the returned string for a mouse1 button press.
+.TP
+.BI \-2 " retstr"
+Sets the returned string for a mouse2 button press.
+.TP
+.BI \-3 " retstr"
+Sets the returned string for a mouse3 button press.
+.TP
+.BI \-bd " color"
+Sets the border color. The color has to be a 6 digit hexadecimal number string.
+.TP
+.BI \-bg " color"
+Sets the background color. The color has to be a 6 digit hexadecimal number string.
+.TP
+.BI \-fg " color"
+Sets the foreground color. The color has to be a 6 digit hexadecimal number string.
+.TP
+.BI \-fm " font"
+Sets the " main" font.
+.TP
+.BI \-g " pixel"
+Sets the inner window gap width in pixels.
+.TP
+.BI \-t " sec"
+Sets an optional timer to close the window after sec seconds.
+.TP
+.BI \-x " pixel"
+Sets the x coordinate of the window accordingly to the selected horizontal
+reference (cf. \-hl | \-hc | \-hr).
+.TP
+.BI \-y " pixel"
+Sets the y coordinate of the window accordingly to the selected vertical reference
+(cf. \-vt | \-vc | \-vb).
+.TP
+.BI \-w " pixel"
+Sets the window width.
+.TP
+.BI \-h " pixel"
+Sets the window height.
