@@ -14,7 +14,7 @@ static int vref = CENTER;              /* vertical reference   { TOP, CENTER, BO
 static int adaptw = ENABLE;            /* adapt width to text */
 static int adapth = ENABLE;            /* adapt height to text */
 static int keepontop = ENABLE;         /* keep window on top */
-static int overrideredirect = ENABLE;  /* move/resize window */
+static int overrideredirect = DISABLE; /* move/resize window */
 
 /* default geometry */
 
