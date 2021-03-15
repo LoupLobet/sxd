@@ -91,7 +91,7 @@ main(int argc, char *argv[])
 			vref = CENTER;
 		else if (!strcmp(argv[i], "-vb"))   /* vref BOTTOM */
 			vref = BOTTOM;
-		else if (!strcmp(argv[i], "-t"))    /* keep on top */
+		else if (!strcmp(argv[i], "-k"))    /* keep on top */
 			keepontop = ENABLE;
 		else if (!strcmp(argv[i], "-s"))    /* static window */
 			overrideredirect = ENABLE;
@@ -237,7 +237,7 @@ drawcontent(void)
 	 * and command line arguments.
 	 */
 	int x, y;
-	Line *line;
+	Line *line = NULL;
 
 	x = wingappx;
 	y = wingappx + fontset[MAIN].xfont->ascent;
@@ -388,7 +388,7 @@ end(int sig)
 static void
 usage(void)
 {
-	(void)fputs("usage: sxd [-aw] [-ah] [-hl|-hc|-hr] [-s] [-t] [-v] [-vt|-vc|-vb] [-1 retstr]\n"
+	(void)fputs("usage: sxd [-aw] [-ah] [-hl|-hc|-hr] [-s] [-k] [-v] [-vt|-vc|-vb] [-1 retstr]\n"
 		    "           [-2 retstr] [-3 retstr] [-bd color] [-bg color] [-fg color] [-fm font]\n"
 		    "           [-g pixel] [-t sec] [-x pixel] [-y pixel] [-w pixel] [-h pixel]\n", stderr);
 	exit(1);
@@ -406,7 +406,7 @@ winsetup(XWindowAttributes *wa)
 	unsigned int ww = 0, wh = 0;
 	int i;
 	int wx = 0, wy = 0;
-	Line *line;
+	Line *line = NULL;
 
 	line = input;
 	for (i = 0; line != NULL; i++) {
