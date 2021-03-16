@@ -1,4 +1,5 @@
 /* See LICENCE file for copyright and licence details */
+/* this piece of software come from dmenu : http://tools.suckless.org/dmenu/ */
 
 #define UTF_SIZ     4
 
