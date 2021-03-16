@@ -42,6 +42,7 @@ typedef struct Line {
 static GC gc;
 static Window win, root, pwin;
 static int screen;
+static Drawable bufmap;
 static Clr *scheme;
 static Fnt *fontset;
 static Display *dpy;
@@ -49,6 +50,7 @@ static Line *input;
 static const char *embed;
 static XIC xic;
 static unsigned int timer;
+static unsigned int ww, wh;
 
 #include "config.h"
 
@@ -91,8 +93,6 @@ main(int argc, char *argv[])
 			vref = CENTER;
 		else if (!strcmp(argv[i], "-vb"))   /* vref BOTTOM */
 			vref = BOTTOM;
-		else if (!strcmp(argv[i], "-k"))    /* keep on top */
-			keepontop = ENABLE;
 		else if (!strcmp(argv[i], "-s"))    /* static window */
 			overrideredirect = ENABLE;
 		else if (i + 1 == argc)
@@ -131,6 +131,12 @@ main(int argc, char *argv[])
 		warning("no locale support");
 	if ((dpy = XOpenDisplay(NULL)) == NULL)
 		error("connot open display");
+
+#ifdef __OpenBSD__
+	if (pledge("stdio rpath", NULL) == -1)
+		error("pledge");
+#endif
+
 	screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, screen);
 	if (!embed || !(pwin = strtol(embed, NULL, 0)))
@@ -139,16 +145,10 @@ main(int argc, char *argv[])
 		error("could not get window attributes: 0x%lx", pwin);
 	gc = XCreateGC(dpy, root, 0, NULL);
 	XSetLineAttributes(dpy, gc, 1, LineSolid, CapButt, JoinMiter);
-
 	if ((fontset = createfontset(fonts, FONTNB)) == NULL)
 		error("could not create fontset");
 	if ((scheme = createscheme(colors, COLORNB)) == NULL)
 		error("could not create scheme");
-
-#ifdef __OpenBSD__
-	if (pledge("stdio rpath", NULL) == -1)
-		error("pledge");
-#endif
 
 	readstdin(&input);
 	winsetup(&wa);
@@ -156,6 +156,8 @@ main(int argc, char *argv[])
 
 	return 0;
 }
+
+
 
 static Fnt *
 createfontset(const char *sfonts[], int fontnb)
@@ -201,7 +203,7 @@ drawtextutf8(char *text, unsigned int size, Fnt *font, Clr *color, int x, int y)
 	const char *utf8str = NULL;
 	XftDraw *xftdrw = NULL;
 
-	xftdrw = XftDrawCreate(dpy, win, DefaultVisual(dpy, screen),
+	xftdrw = XftDrawCreate(dpy, bufmap, DefaultVisual(dpy, screen),
 	                       DefaultColormap(dpy, screen));
 	utf8strlen = 0;
 	utf8str = text;
@@ -226,6 +228,8 @@ drawtextutf8(char *text, unsigned int size, Fnt *font, Clr *color, int x, int y)
 	                     (XftChar8 *) buf, len);
 		}
 	}
+	if (xftdrw)
+		XftDrawDestroy(xftdrw);
 }
 
 static void
@@ -343,8 +347,15 @@ run(void)
 		alarm(timer);
 	}
 
+#ifdef __OpenBSD__
+	if (pledge("stdio", NULL) == -1)
+		error("pledge");
+#endif
+
 	for (;;) {
 		XNextEvent(dpy, &ev);
+		if (XFilterEvent(&ev, win))
+			continue;
 		switch(ev.type) {
 		case ButtonPress:
 			/* return string according to config.h */
@@ -354,12 +365,28 @@ run(void)
 				end(0);
 			}
 			break;
+		case ConfigureNotify:
+			ww = ev.xconfigure.width;
+			wh = ev.xconfigure.height;
+			XFreePixmap(dpy, bufmap);
+			bufmap = XCreatePixmap(dpy, root, ww, wh,
+			           DefaultDepth(dpy, screen));
+			break;
 		case Expose:
-			drawcontent();
+			if (ev.xexpose.count == 0) {
+				/* draw background */
+				XSetForeground(dpy, gc, scheme[BG].pixel);
+				XFillRectangle(dpy, bufmap, gc, 0, 0, ww, wh);
+				/* draw window content */
+				drawcontent();
+				XCopyArea(dpy, bufmap, win, gc, 0, 0, ww, wh, 0, 0);
+				XSync(dpy, False);
+			}
+			XRaiseWindow(dpy, win);
 			break;
 		case VisibilityNotify:
 			/* keep window on top */
-			if (keepontop && ev.xvisibility.state != VisibilityUnobscured)
+			if (ev.xvisibility.state != VisibilityUnobscured)
 				XRaiseWindow(dpy, win);
 			break;
 		}
@@ -388,7 +415,7 @@ end(int sig)
 static void
 usage(void)
 {
-	(void)fputs("usage: sxd [-aw] [-ah] [-hl|-hc|-hr] [-s] [-k] [-v] [-vt|-vc|-vb] [-1 retstr]\n"
+	(void)fputs("usage: sxd [-aw] [-ah] [-hl|-hc|-hr] [-s] [-v] [-vt|-vc|-vb] [-1 retstr]\n"
 		    "           [-2 retstr] [-3 retstr] [-bd color] [-bg color] [-fg color] [-fm font]\n"
 		    "           [-g pixel] [-t sec] [-x pixel] [-y pixel] [-w pixel] [-h pixel]\n", stderr);
 	exit(1);
@@ -403,7 +430,7 @@ winsetup(XWindowAttributes *wa)
 	unsigned long valuemask = CWBackPixel | CWEventMask;
 	unsigned int texth = 0;
 	unsigned int textw = 0;
-	unsigned int ww = 0, wh = 0;
+	//unsigned int ww = 0, wh = 0;
 	int i;
 	int wx = 0, wy = 0;
 	Line *line = NULL;
@@ -444,10 +471,12 @@ winsetup(XWindowAttributes *wa)
 		error("unknow vertical reference: %s", vref);
 
 	swa.background_pixel = scheme[BG].pixel;
-	swa.event_mask = ExposureMask | KeyPressMask | KeyReleaseMask | ButtonPressMask | VisibilityChangeMask;
+	swa.event_mask = ExposureMask | KeyPressMask | StructureNotifyMask |
+	                 ButtonPressMask | VisibilityChangeMask;
 	swa.override_redirect = True;
+	swa.bit_gravity = NorthWestGravity;
 	if (overrideredirect)
-		valuemask = valuemask | CWOverrideRedirect;
+		valuemask = valuemask | CWOverrideRedirect | CWBitGravity;
 	win = XCreateWindow(dpy, pwin, wx, wy, ww, wh, borderpx,
 	                    CopyFromParent, CopyFromParent, CopyFromParent,
 	                    valuemask, &swa);
@@ -458,5 +487,6 @@ winsetup(XWindowAttributes *wa)
 		error("XOpenIM: could not open input device");
 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
 	                XNClientWindow, win, XNFocusWindow, win, NULL);
+	bufmap = XCreatePixmap(dpy, root, ww, wh, DefaultDepth(dpy, screen));
 	XMapRaised(dpy, win);
 }
