@@ -157,8 +157,6 @@ main(int argc, char *argv[])
 	return 0;
 }
 
-
-
 static Fnt *
 createfontset(const char *sfonts[], int fontnb)
 {
@@ -430,7 +428,6 @@ winsetup(XWindowAttributes *wa)
 	unsigned long valuemask = CWBackPixel | CWEventMask;
 	unsigned int texth = 0;
 	unsigned int textw = 0;
-	//unsigned int ww = 0, wh = 0;
 	int i;
 	int wx = 0, wy = 0;
 	Line *line = NULL;
@@ -461,11 +458,12 @@ winsetup(XWindowAttributes *wa)
 		wx = (int) (0.5 * (wa->width - ww));
 	else
 		error("unknow horizontal reference: %s", href);
+
 	if (vref == TOP)
 		wy = y;
 	else if (vref == BOTTOM)
 		wy = wa->height - wh - y;
-	else if (href == CENTER)
+	else if (vref == CENTER)
 		wy = (int) (0.5 * (wa->height - wh));
 	else
 		error("unknow vertical reference: %s", vref);
