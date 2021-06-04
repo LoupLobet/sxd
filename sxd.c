@@ -51,7 +51,7 @@ static Clr	*createscheme(const char *[], int);
 static void	 getextw(char *, unsigned int, Fnt *, unsigned int *);
 static int	 loadcolor(const char *, Clr *);
 static void	 print(const Arg *);
-static void  readlines(FILE *);
+static void	 readlines(FILE *);
 static char	*replacetabs(char *, char *);
 static void	 run(void);
 static void	 spawn(const Arg *);
@@ -356,6 +356,27 @@ winsetup(XWindowAttributes *pwa)
 					}
 			}
 		}
+		if (mon < 0 && !area && drw_getpointer(drw, &px, &py))
+			for (i = 0; i < n; i++)
+				if (INTERSECT(px, py, 1, 1, info[i]))
+					break;
+
+		if (usepointer) {
+			if (drw_getpointer(drw, &px, &py))
+				error("cannot query pointer");
+			x = px + href * x - !href * w / 2;
+			y = py + vref * y - !vref * h / 2;
+		} else {
+			if (href)
+				/* expand x and h with *ref = +- 1 to understand */
+				x = info[i].x_org + x + ((1 - href) / 2) * (info[i].width - w - 2 * x);
+			else
+				x = info[i].x_org + (info[i].width - w) / 2;
+			if (vref)
+				y = info[i].y_org + y + ((1 - vref) / 2) * (info[i].height - h - 2 * y);
+			else
+				y = info[i].y_org + (info[i].height - h) / 2;
+		}
 		XFree(info);
 	} else
 #endif
@@ -367,7 +388,7 @@ winsetup(XWindowAttributes *pwa)
 			y = py + vref * y - !vref * h / 2;
 		} else {
 			if (href)
-				/* expand x and h with *ref = +- 1 to understand */
+				/* expand x and y with *ref = +- 1 to understand */
 				x = x + ((1 - href) / 2) * (pwa->width - w - 2 * x);
 			else
 				x = (pwa->width - w) / 2;
