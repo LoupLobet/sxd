@@ -1,6 +1,7 @@
 /* See LICENCE file for copyright and licence details */
 
-#define MIN(A, B) (A > B) ? B : A
+#define MIN(A, B) (((A) > (B)) ? (B) : (A))
+#define MAX(A, B) (((A) < (B)) ? (B) : (A))
 
 void	 error(const char *, ...);
 void	 warning(const char *, ...);

@@ -1,7 +1,7 @@
 /* See LICENCE file for copyright and licence details */
 
+#include <ctype.h>
 #include <locale.h>
-#include <signal.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -9,246 +9,145 @@
 #include <unistd.h>
 
 #include <X11/Xlib.h>
-#include <X11/Xatom.h>
 #include <X11/Xft/Xft.h>
+#ifdef XINERAMA
+#include <X11/extensions/Xinerama.h>
+#endif
 
+#include "drw.h"
 #include "util.h"
-#include "utf8.h"
 
 /* sources */
 #define _POSIX_C_SOURCE 200809L /* gcc */
 #define _XOPEN_SOURCE 700
 
-/* config.h related enumerations */
-enum { FG, BG, BD, COLORNB };              /* colors */
-enum { MAIN, FONTNB };                     /* fonts */
-enum { DISABLE, ENABLE };                  /* option status */
-enum { LEFT, TOP, CENTER, RIGHT, BOTTOM }; /* references */
-enum { MOUSE1, MOUSE2, MOUSE3, BUTTONNB }; /* mouse buttons */
+#define INTERSECT(x,y,w,h,r)  (MAX(0, MIN((x)+(w),(r).x_org+(r).width)  - MAX((x),(r).x_org)) \
+                             * MAX(0, MIN((y)+(h),(r).y_org+(r).height) - MAX((y),(r).y_org)))
 
-typedef XftColor Clr;
+enum { FG, BG, BD, COLORNB };                   /* color scheme */
+enum { LEFT = 1,   CENTER = 0,   RIGHT = -1 };  /* horizontal reference and text position */
+enum { TOP = 1, /* CENTER = 0,*/ BOTTOM = -1 }; /* vertical reference */
+enum { MANUAL, AUTO };                          /* geometry mode  */
+enum { MOUSE1, MOUSE2, MOUSE3, BUTTONNB };      /* mouse buttons */
 
-typedef struct Fnt {
-	FcPattern *pattern;
-	XftFont *xfont;
-} Fnt;
+typedef union {
+	float f;
+	int i;
+	unsigned int ui;
+	char *s;
+	const void *v;
+} Arg;
 
-typedef struct Line {
-	unsigned int extw;
-	struct Line *next;
-	char *text;
-} Line;
+typedef struct {
+	unsigned int event;
+	int oneshot;
+	void (*func)(const Arg *);
+	const Arg arg;
+} Btn; /* mouse button */
 
-static GC gc;
-static Window win, root, pwin;
-static int screen;
-static Drawable bufmap;
-static Clr *scheme;
-static Fnt *fontset;
-static Display *dpy;
-static Line *input;
-static const char *embed;
-static XIC xic;
-static unsigned int timer;
-static unsigned int ww, wh;
-
-#include "config.h"
-
-static Fnt 	*createfontset(const char *[], int);
+static void	 cleanup(void);
+static Fnt	 createfont(const char *, FcPattern *);
 static Clr	*createscheme(const char *[], int);
-static void	 drawtextutf8(char *, unsigned int, Fnt *, Clr *, int, int);
-static void	 drawcontent(void);
-static void	 end(int);
 static void	 getextw(char *, unsigned int, Fnt *, unsigned int *);
 static int	 loadcolor(const char *, Clr *);
-static int 	 loadfont(const char *, FcPattern *, Fnt *);
-static void	 readstdin(Line **);
+static void	 print(const Arg *);
+static void  readlines(FILE *);
+static char	*replacetabs(char *, char *);
 static void	 run(void);
-static void	 usage(void);
+static void	 spawn(const Arg *);
+static void	 windraw(void);
 static void	 winsetup(XWindowAttributes *);
+
+static Fnt font;
+static Window root, pwin, win;
+static XIC xic;
+static int linenb;
+static int screen;
+static Display *dpy;
+static Drw *drw;
+static char *embed;
+static Line *lines;
+static Clr *scheme;
+
+#include "config.h"
 
 int
 main(int argc, char *argv[])
 {
 	XWindowAttributes wa;
-	int i;
 
-	for (i = 1; i < argc; i++) {
-		if (!strcmp(argv[i], "-v")) {       /* version */
-			fputs("sxd-"VERSION, stdout);
-			exit(0);
-		} else if (!strcmp(argv[i], "-aw")) /* adapte width */
-			adaptw = ENABLE;
-		else if (!strcmp(argv[i], "-ah"))   /* adapte height */
-			adapth = ENABLE;
-		else if (!strcmp(argv[i], "-hl"))   /* href LEFT */
-			href = LEFT;
-		else if (!strcmp(argv[i], "-hc"))   /* href CENTER */
-			href = CENTER;
-		else if (!strcmp(argv[i], "-hr"))   /* href RIGHT */
-			href = RIGHT;
-		else if (!strcmp(argv[i], "-vt"))   /* vref TOP */
-			vref = TOP;
-		else if (!strcmp(argv[i], "-vc"))   /* vref CENTER */
-			vref = CENTER;
-		else if (!strcmp(argv[i], "-vb"))   /* vref BOTTOM */
-			vref = BOTTOM;
-		else if (!strcmp(argv[i], "-s"))    /* static window */
-			overrideredirect = ENABLE;
-		else if (i + 1 == argc)
-			usage();
-		else if (!strcmp(argv[i], "-1"))    /* mouse 1 */
-			outputs[MOUSE1] = argv[++i];
-		else if (!strcmp(argv[i], "-2"))    /* mouse 2 */
-			outputs[MOUSE2] = argv[++i];
-		else if (!strcmp(argv[i], "-3"))    /* mouse 3 */
-			outputs[MOUSE3] = argv[++i];
-		else if (!strcmp(argv[i], "-bd"))   /* bd color */
-			colors[BD] = argv[++i];
-		else if (!strcmp(argv[i], "-bg"))   /* bg color */
-			colors[BG] = argv[++i];
-		else if (!strcmp(argv[i], "-fg"))   /* fg color */
-			colors[FG] = argv[++i];
-		else if (!strcmp(argv[i], "-fm"))   /* main font */
-			fonts[MAIN] = argv[++i];
-		else if (!strcmp(argv[i], "-g"))               /* gaps */
-			wingappx = (unsigned int) estrtol(argv[++i], 10);
-		else if (!strcmp(argv[i], "-t"))               /* timer */
-			timer = (unsigned int) estrtol(argv[++i], 10);
-		else if (!strcmp(argv[i], "-x"))               /* x */
-			x = (int) estrtol(argv[++i], 10);
-		else if (!strcmp(argv[i], "-y"))               /* y */
-			y = (int) estrtol(argv[++i], 10);
-		else if (!strcmp(argv[i], "-w"))               /* width */
-			w = (unsigned int) estrtol(argv[++i], 10);
-		else if (!strcmp(argv[i], "-h"))               /* hight */
-			h = (unsigned int) estrtol(argv[++i], 10);
-		else
-			usage();
-	}
-
-	if (!setlocale(LC_CTYPE, "") || !XSupportsLocale())
-		warning("no locale support");
+	if (setlocale(LC_CTYPE, "") == NULL || !XSupportsLocale())
+		error("no locale support");
 	if ((dpy = XOpenDisplay(NULL)) == NULL)
-		error("connot open display");
-
-#ifdef __OpenBSD__
-	if (pledge("stdio rpath", NULL) == -1)
-		error("pledge");
-#endif
-
+		error("cannot open display");
 	screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, screen);
-	if (!embed || !(pwin = strtol(embed, NULL, 0)))
+	if (embed == NULL || !(pwin = estrtol(embed, 0)))
 		pwin = root;
 	if (!XGetWindowAttributes(dpy, pwin, &wa))
 		error("could not get window attributes: 0x%lx", pwin);
-	gc = XCreateGC(dpy, root, 0, NULL);
-	XSetLineAttributes(dpy, gc, 1, LineSolid, CapButt, JoinMiter);
-	if ((fontset = createfontset(fonts, FONTNB)) == NULL)
-		error("could not create fontset");
-	if ((scheme = createscheme(colors, COLORNB)) == NULL)
-		error("could not create scheme");
+	drw = drw_create(dpy, pwin, screen, 0, 0, wa.width, wa.height);
+	font = createfont(fontname, NULL);
+	scheme = createscheme(colornames, COLORNB);
+	readlines(stdin);
 
-	readstdin(&input);
 	winsetup(&wa);
 	run();
-
-	return 0;
 }
 
-static Fnt *
-createfontset(const char *sfonts[], int fontnb)
+static void
+cleanup(void)
 {
-	int i;
-	Fnt *fontset = NULL;
+	free(scheme);
+	drw_free(drw);
+	XSync(dpy, False);
+	XCloseDisplay(dpy);
+}
 
-	if (sfonts == NULL || fontnb < 0)
-		return NULL;
-	fontset = emalloc(fontnb * sizeof(Fnt));
-	for (i = 0; i < fontnb; i++) {
-		if (loadfont(sfonts[i], NULL, &fontset[i]))
-			return NULL;
+static Fnt
+createfont(const char *fname, FcPattern *fpattern)
+{
+	Fnt f;
+	FcBool iscolorfont;
+	FcPattern *pattern = NULL;
+	XftFont *xfont = NULL;
+
+	if (fname) {
+		if ((xfont = XftFontOpenName(dpy, screen, fname)) == NULL)
+			error("could not load font from name: %s", fname);
+		if ((pattern = FcNameParse((FcChar8 *) fname)) == NULL)
+			error("could not load font from pattern: %s", fname);
+	} else if (fpattern) {
+		if ((xfont = XftFontOpenPattern(dpy, fpattern)))
+			error("could not load font from pattern");
+	} else
+		error("cannot load unspecified font");
+	/* avoid color fonts to be used */
+	if (FcPatternGetBool(xfont->pattern, FC_COLOR, 0, &iscolorfont) ==
+	   FcResultMatch &&  iscolorfont) {
+		XftFontClose(dpy, xfont);
+		error("could not load color fonts");
 	}
-	return fontset;
+	f.xfont = xfont;
+	f.pattern = pattern;
+	return f;
 }
 
 static Clr *
-createscheme(const char *scolors[], int colornb)
+createscheme(const char *cnames[], int cnb)
 {
 	int i;
-	Clr *clrs = NULL;
+	Clr *s = NULL;
 
-	if (scolors == NULL || colornb < 0)
-		return NULL;
-	if ((clrs = calloc(colornb, sizeof(Clr))) == NULL)
+	if (cnames == NULL || cnb < 0)
+		error("color name: NULL pointer");
+	if ((s = calloc(cnb, sizeof(Clr))) == NULL)
 		error("could not allocate color scheme");
-	for (i = 0; i < colornb; i++) {
-		if (loadcolor(scolors[i], &clrs[i]))
-			return NULL;
+	for (i = 0; i < cnb; i++) {
+		if (loadcolor(cnames[i], &s[i]))
+			error("could not load color: %s\n", cnames[i]);
 	}
-	return clrs;
-}
-
-static void
-drawtextutf8(char *text, unsigned int size, Fnt *font, Clr *color, int x, int y)
-{
-	char buf[1024];
-	long utf8codepoint = 0;
-	int charexists = 0;
-	int len;
-	int utf8strlen, utf8charlen;
-	const char *utf8str = NULL;
-	XftDraw *xftdrw = NULL;
-
-	xftdrw = XftDrawCreate(dpy, bufmap, DefaultVisual(dpy, screen),
-	                       DefaultColormap(dpy, screen));
-	utf8strlen = 0;
-	utf8str = text;
-	while(*text) {
-		utf8charlen = utf8decode(text, &utf8codepoint, UTF_SIZ);
-		charexists = charexists || XftCharExists(dpy, font->xfont, utf8codepoint);
-		if (charexists) {
-			utf8strlen += utf8charlen;
-			text += utf8charlen;
-		}
-		if (!charexists)
-			text++;
-		else
-			charexists = 0;
-	}
-	if (utf8strlen) {
-		len = MIN(utf8strlen, sizeof(buf) - 1);
-		if (len) {
-			memcpy(buf, utf8str, len);
-			buf[len] = '\0';
-			XftDrawStringUtf8(xftdrw, color, font->xfont, x, y,
-	                     (XftChar8 *) buf, len);
-		}
-	}
-	if (xftdrw)
-		XftDrawDestroy(xftdrw);
-}
-
-static void
-drawcontent(void)
-{
-	/*
-	 * draw window main content (i.e. stdin given text), with
-	 * the [MAIN] font of fontset, according to configuration
-	 * and command line arguments.
-	 */
-	int x, y;
-	Line *line = NULL;
-
-	x = wingappx;
-	y = wingappx + fontset[MAIN].xfont->ascent;
-	line = input;
-	for (; line != NULL; line = line->next) {
-		drawtextutf8(line->text, strlen(line->text),
-		             &fontset[MAIN], &scheme[FG], x, y);
-		y += fontset[MAIN].xfont->ascent + fontset[MAIN].xfont->descent;
-	}
+	return s;
 }
 
 static void
@@ -264,73 +163,60 @@ getextw(char *str, unsigned int size, Fnt *font, unsigned int *extw)
 }
 
 static int
-loadcolor(const char *scolor, Clr *clr)
+loadcolor(const char *cname, Clr *c)
 {
-	if (scolor == NULL || clr == NULL)
+	if (cname == NULL || c == NULL)
 		return 1;
 	if (!XftColorAllocName(dpy, DefaultVisual(dpy, screen),
-			       DefaultColormap(dpy, screen), scolor, clr))
-		error("could not allocate color: %s", scolor);
+	    DefaultColormap(dpy, screen), cname, c))
+		error("could not allocate color: %s", cname);
 	return 0;
 }
 
-static int
-loadfont(const char *ftname, FcPattern *ftpattern, Fnt *font)
+void print(const Arg *arg)
 {
-	FcBool iscolorfont;
-	FcPattern *pattern = NULL;
-	XftFont *xfont = NULL;
-
-	if (ftname) {
-		if ((xfont = XftFontOpenName(dpy, screen, ftname)) == NULL) {
-			warning("could not load font from name: %s\n", ftname);
-			return 1;
-		}
-		if ((pattern = FcNameParse((FcChar8 *) ftname)) == NULL) {
-			warning("could not load font from pattern: %s\n", ftname);
-			return 1;
-		}
-	} else if (ftpattern) {
-		if ((xfont = XftFontOpenPattern(dpy, ftpattern))) {
-			warning("could not load font from pattern\n");
-			return 1;
-		}
-	} else
-		error("cannot load unspecified font");
-	/* avoid color fonts to be used */
-	if (FcPatternGetBool(xfont->pattern, FC_COLOR, 0, &iscolorfont) ==
-	   FcResultMatch &&  iscolorfont) {
-		XftFontClose(dpy, xfont);
-		return 1;
-	}
-	font->xfont = xfont;
-	font->pattern = pattern;
-	return 0;
+	if (arg->s != NULL)
+		printf("%s\n", arg->s);
 }
 
 static void
-readstdin(Line **input)
+readlines(FILE *fp)
 {
 	char buf[BUFSIZ];
 	int i;
-	Line *line = NULL;
 	char *p = NULL;
 
-	if (*input != NULL)
-		return;
-	line = *input = emalloc(sizeof(Line));
-	for (i = 0; fgets(buf, sizeof(buf), stdin); i++) {
+	for (i = 0; fgets(buf, sizeof(buf), fp); i++) {
+		lines = erealloc(lines, (i + 1) * sizeof(Line));
 		if ((p = strchr(buf, '\n')) != NULL)
 			*p = '\0';
-		if (i) {
-			line->next = emalloc(sizeof(Line));
-			line = line->next;
-		}
-		line->text = emalloc(strlen(buf) + 1);
-		strcpy(line->text, buf);
-		getextw(line->text, strlen(line->text), &fontset[MAIN], &line->extw);
+		lines[i].text = replacetabs(buf, tabstr);
+		getextw(lines[i].text, strlen(lines[i].text), &font, &lines[i].extw);
+		linenb++;
 	}
-	line->next = NULL;
+}
+
+static char *
+replacetabs(char *src, char *str)
+{
+	int i, j;
+	char *cooked = NULL;
+
+	for (i = 0, j = 0; i < strlen(src); i++) {
+		if (src[i] == '\t')
+			j++;
+	}
+	cooked = emalloc(strlen(src) + j * (strlen(str) - 1) + 1);
+	for (i = 0, j = 0; i < strlen(src); i++) {
+		if (src[i] == '\t') {
+			(void)strcat(cooked, str);
+			j += strlen(str);
+		} else {
+			cooked[j] = src[i];
+			j++;
+		}
+	}
+	return cooked;
 }
 
 static void
@@ -339,152 +225,175 @@ run(void)
 	XEvent ev;
 	unsigned int button;
 
-	/* set timer */
-	if (timer > 0) {
-		signal(SIGALRM, end);
-		alarm(timer);
+	drw_setscheme(drw, scheme);
+	drw_setfont(drw, font);
+	/* waiting for window mapping */
+	if (!overredir) {
+		do {
+			XNextEvent(dpy, &ev);
+			if (XFilterEvent(&ev, win))
+				continue;
+			if (ev.type == ConfigureNotify)
+				drw_resize(drw, ev.xconfigure.x, ev.xconfigure.y,
+				           ev.xconfigure.width, ev.xconfigure.height);
+		} while (ev.type != MapNotify);
 	}
 
-#ifdef __OpenBSD__
-	if (pledge("stdio", NULL) == -1)
-		error("pledge");
-#endif
-
-	for (;;) {
-		XNextEvent(dpy, &ev);
+	while (!XNextEvent(dpy, &ev)) {
 		if (XFilterEvent(&ev, win))
 			continue;
-		switch(ev.type) {
-		case ButtonPress:
-			/* return string according to config.h */
-			button = ev.xbutton.button;
-			if (button <= BUTTONNB && !(ev.xbutton.state & WMMASK)) {
-				fprintf(stdout, "%s\n", outputs[button - 1]);
-				end(0);
-			}
-			break;
-		case ConfigureNotify:
-			ww = ev.xconfigure.width;
-			wh = ev.xconfigure.height;
-			XFreePixmap(dpy, bufmap);
-			bufmap = XCreatePixmap(dpy, root, ww, wh,
-			           DefaultDepth(dpy, screen));
-			break;
+
+		switch (ev.type) {
+		case DestroyNotify:
+			if (ev.xdestroywindow.window != win)
+				break;
+			cleanup();
+			exit(1);
 		case Expose:
-			if (ev.xexpose.count == 0) {
-				/* draw background */
-				XSetForeground(dpy, gc, scheme[BG].pixel);
-				XFillRectangle(dpy, bufmap, gc, 0, 0, ww, wh);
-				/* draw window content */
-				drawcontent();
-				XCopyArea(dpy, bufmap, win, gc, 0, 0, ww, wh, 0, 0);
-				XSync(dpy, False);
-			}
-			XRaiseWindow(dpy, win);
+			if (ev.xexpose.count == 0)
+				windraw();
+			break;
+		case ButtonPress:
+		case ButtonRelease:
+			button = ev.xbutton.button - 1;
+			if (ev.type == mouse[button].event)
+				if (button <= BUTTONNB) {
+					mouse[button].func(&mouse[button].arg);
+					if (mouse[button].oneshot)
+						exit(0);
+				}
 			break;
 		case VisibilityNotify:
-			/* keep window on top */
-			if (ev.xvisibility.state != VisibilityUnobscured)
+			if (keepontop && ev.xvisibility.state != VisibilityUnobscured)
 				XRaiseWindow(dpy, win);
 			break;
 		}
 	}
+
 }
 
-static void
-end(int sig)
+void spawn(const Arg *arg)
 {
-	/*
-	 * clean exit function, used when a timer was set,
-	 * or when the user press mouse button on window.
-	 */
-	int i;
-
-	exit(sig);
-	XCloseDisplay(dpy);
-	XFreeGC(dpy, gc);
-	for (i = 0; i < FONTNB; i++) {
-		if (fontset[i].pattern)
-			FcPatternDestroy(fontset[i].pattern);
-		XftFontClose(dpy, fontset[i].xfont);
+	if (fork() == 0) {
+			if (dpy)
+				close(ConnectionNumber(dpy));
+			setsid();
+			execvp(((char **)arg->v)[0], (char **)arg->v);
+			error("execvp %s", ((char **)arg->v)[0]);
 	}
 }
 
 static void
-usage(void)
+windraw(void)
 {
-	(void)fputs("usage: sxd [-aw] [-ah] [-hl|-hc|-hr] [-s] [-v] [-vt|-vc|-vb] [-1 retstr]\n"
-		    "           [-2 retstr] [-3 retstr] [-bd color] [-bg color] [-fg color] [-fm font]\n"
-		    "           [-g pixel] [-t sec] [-x pixel] [-y pixel] [-w pixel] [-h pixel]\n", stderr);
-	exit(1);
+	int i, x, y;
+
+	/* draw background */
+	drw_drawrect(drw, 0, 0, drw->w, drw->h, BG);
+	/* draw text */
+	for (i = 0; i < linenb; i++) {
+		switch(textpos) {
+		case LEFT:
+			x = gappx;
+			break;
+		case CENTER:
+			x = (drw->w - lines[i].extw) / 2;
+			break;
+		case RIGHT:
+			x = drw->w - lines[i].extw - gappx;
+			break;
+		}
+		y = gappx + font.xfont->ascent + i * (font.xfont->ascent +
+		    font.xfont->descent + linepadding);
+		drw_drawtext(drw, lines[i].text, strlen(lines[i].text), &font, &scheme[FG], x, y);
+	}
+	drw_map(drw, win, 0, 0, drw->w, drw->h);
 }
 
 static void
-winsetup(XWindowAttributes *wa)
+winsetup(XWindowAttributes *pwa)
 {
 	XSetWindowAttributes swa;
-	XClassHint xch = {progname, progname};	/* cf config.h */
+
+	XClassHint xch = { "sxd", "sxd" };
 	XIM xim;
-	unsigned long valuemask = CWBackPixel | CWEventMask;
-	unsigned int texth = 0;
-	unsigned int textw = 0;
-	int i;
-	int wx = 0, wy = 0;
-	Line *line = NULL;
+	int i, px, py;
+#ifdef XINERAMA
+	XineramaScreenInfo *info = NULL;
+	Window pw, xw, dw, *dws = NULL;
+	unsigned int du;
+	int a, area = 0, di, j, n;
+#endif
 
-	line = input;
-	for (i = 0; line != NULL; i++) {
-		if (textw < line->extw)
-			textw = line->extw;
-		line = line->next;
+	if (gmymode == AUTO) {
+		w = 0;
+		for (i = 0; i < linenb; i++) {
+			if (lines[i].extw > w)
+				w = lines[i].extw;
+		}
+		w += 2 * gappx;
+		h = gappx * 2 + (font.xfont->ascent + font.xfont->descent) * linenb;
 	}
-	texth = (fontset[MAIN].xfont->ascent + fontset[MAIN].xfont->descent) * i;
 
-	/* compute window dimensions */
-	if (adaptw && textw + 2 * wingappx != w)
-		ww = textw + 2 * wingappx;
-	else
-		ww = w;
-	if (adapth && texth + 2 * wingappx != h)
-		wh = texth + 2 * wingappx;
-	else
-		wh = h;
+	/* convert coordinates + references, into "X usable" coordinates */
+#ifdef XINERAMA
+	i = 0;
+	if (pwin == root && (info = XineramaQueryScreens(dpy, &n))) {
+		XGetInputFocus(dpy, &xw, &di);
+		if (mon >= 0 && mon < n)
+			i = mon;
+		else if (xw != root && xw != PointerRoot && xw != None) {
+			do {
+				if (XQueryTree(dpy, (pw = xw), &dw, &xw, &dws, &du) && dws != NULL)
+					XFree(dws);
+			} while (xw != root && xw != pw);
+			/* find the xinerama screen with which the sindow intersects most. */
+			if (XGetWindowAttributes(dpy, pw, pwa)) {
+				for (j = 0; j < n; j++)
+					if ((a = INTERSECT(pwa->x, pwa->y, pwa->width, pwa->height, info[j])) > area) {
+						area = a;
+						i = j;
+					}
+			}
+		}
+		XFree(info);
+	} else
+#endif
+	{
+		if (usepointer) {
+			if (drw_getpointer(drw, &px, &py))
+				error("cannot query pointer");
+			x = px + href * x - !href * w / 2;
+			y = py + vref * y - !vref * h / 2;
+		} else {
+			if (href)
+				/* expand x and h with *ref = +- 1 to understand */
+				x = x + ((1 - href) / 2) * (pwa->width - w - 2 * x);
+			else
+				x = (pwa->width - w) / 2;
+			if (vref)
+				y = y + ((1 - vref) / 2) * (pwa->height - h - 2 * y);
+			else
+				y = (pwa->height - h) / 2;
+		}
+	}
+	drw_resize(drw, x + borderpx, y + borderpx, w, h);
 
-	if (href == LEFT)
-		wx = x;
-	else if (href == RIGHT)
-		wx = wa->width - ww - x;
-	else if (href == CENTER)
-		wx = (int) (0.5 * (wa->width - ww));
-	else
-		error("unknow horizontal reference: %s", href);
-
-	if (vref == TOP)
-		wy = y;
-	else if (vref == BOTTOM)
-		wy = wa->height - wh - y;
-	else if (vref == CENTER)
-		wy = (int) (0.5 * (wa->height - wh));
-	else
-		error("unknow vertical reference: %s", vref);
-
+	/* window setup */
+	swa.override_redirect = overredir;
 	swa.background_pixel = scheme[BG].pixel;
-	swa.event_mask = ExposureMask | KeyPressMask | StructureNotifyMask |
-	                 ButtonPressMask | VisibilityChangeMask;
-	swa.override_redirect = True;
-	swa.bit_gravity = NorthWestGravity;
-	if (overrideredirect)
-		valuemask = valuemask | CWOverrideRedirect | CWBitGravity;
-	win = XCreateWindow(dpy, pwin, wx, wy, ww, wh, borderpx,
-	                    CopyFromParent, CopyFromParent, CopyFromParent,
-	                    valuemask, &swa);
+	swa.event_mask = ExposureMask | StructureNotifyMask | ButtonPressMask |
+	                 ButtonReleaseMask | VisibilityChangeMask;
+	win = XCreateWindow(dpy, root, x, y, w, h, borderpx, CopyFromParent,
+	                    CopyFromParent, CopyFromParent, CWOverrideRedirect |
+			    CWBackPixel | CWEventMask, &swa);
 	XSetWindowBorder(dpy, win, scheme[BD].pixel);
 	XSetClassHint(dpy, win, &xch);
 
 	if ((xim = XOpenIM(dpy, NULL, NULL, NULL)) == NULL)
-		error("XOpenIM: could not open input device");
+		error("cannot open input device");
 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
 	                XNClientWindow, win, XNFocusWindow, win, NULL);
-	bufmap = XCreatePixmap(dpy, root, ww, wh, DefaultDepth(dpy, screen));
-	XMapRaised(dpy, win);
+	XMapWindow(dpy, win);
+	XSync(dpy, False);
 }

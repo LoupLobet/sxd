@@ -1,42 +1,44 @@
 /* See LICENCE file for copyright and licence details */
 
-#define WMMASK Mod4Mask		           /* window manager key */
+static char *tabstr  = "        "; /* define a printable string for '\t' characters */
+static int overredir = 0;          /* override window redirection by the window manger */
+static int keepontop = 0;          /* raise the window every time the visibility is obscured */
+static int mon       = -1;         /* monitor, < 0 mean doesn't use particular monitor */
 
-static char *progname = "sxd";         /* program name */
+/* appearence */
+static int gappx    = 10; /* window gap pixels */
+static int borderpx = 1;  /* window border pixels */
 
-/* location */
-static int x = 50;                     /* default x coordinate */
-static int y = 50;                     /* default y coordinate */
-static int href = CENTER;              /* horizontal reference { LEFT, CENTER, RIGHT } */
-static int vref = CENTER;              /* vertical reference   { TOP, CENTER, BOTTOM } */
+/* font */
+static char *fontname = "GoMono Nerd Font:size=10";
 
-/* options { DISABLE, ENABLE } */
-static int adaptw = ENABLE;            /* adapt width to text */
-static int adapth = ENABLE;            /* adapt height to text */
-static int overrideredirect = DISABLE; /* move/resize window */
+/* window placement */
+static int usepointer = 0;    /* use the corsor as a top-left reference (0|1) */
+static int href       = LEFT; /* horizontal reference (LEFT|CENTER|RIGH) */
+static int vref       = TOP;  /* vertical reference (TOP|CENTER|BOTTOM) */
+static int x          = 100;  /* x coordinates of the vref-href window corner */
+static int y          = 100;  /* y coordinates of the vref-href window corner */
 
-/* default geometry */
+/* window geometry */
+static int gmymode    = AUTO; /* geometry mode (MANUAL|FIT) */
+static unsigned int w = 500;  /* window width */
+static unsigned int h = 250;  /* window height */
 
-static unsigned int w = 1000;          /* default width */
-static unsigned int h = 100;           /* default height */
-static unsigned int borderpx = 3;      /* border width */
-static unsigned int wingappx = 10;     /* window gaps */
+/* text */
+static int textpos     = LEFT; /* text position in the window */
+static int linepadding = 0;    /* padding pixels between lines */
 
 /* color scheme */
-static const char *colors[COLORNB] = {
-	[FG] = "#000000",
-	[BG] = "#ffffff",
-	[BD] = "#57a8a8",
+static const char *colornames[COLORNB] = {
+	[FG] = "#586e75",	/* foreground */
+	[BG] = "#002b36",	/* background */
+	[BD] = "#586e75",	/* border */
 };
 
-/* fontset */
-static const char *fonts[FONTNB] = {
-	[MAIN] = "GoMono Nerd Font:pixelsize=12:antialias=true:autohint=true",
-};
-
-/* mouse buttons */
-static char *outputs[BUTTONNB] = {
-	[MOUSE1] = "1",
-	[MOUSE2] = "2",
-	[MOUSE3] = "3",
+/* mouse buttons mapping */
+static Btn mouse[BUTTONNB] = {
+	/*           Event               Oneshot             Function            Arg */
+	[MOUSE1] = { ButtonRelease,      0,                  print,              { .s = "mouse1" } },
+	[MOUSE2] = { ButtonPress,        1,                  print,              { .s = "mouse2" } },
+	[MOUSE3] = { ButtonRelease,      0,                  spawn,              { .s = "mouse3" } },
 };
