@@ -102,27 +102,6 @@ drw_getpointer(Drw *drw, int *x, int *y)
 	return 0;
 }
 
-int
-drw_getpointersel(Drw *drw, int itemnb)
-{
-	int i;
-	int px, py, x, y;
-
-	if (drw == NULL)
-		return -1;
-	if (drw_getpointer(drw, &px, &py))
-		error("cannot query pointer");
-	x = drw->x;
-	y = drw->y;
-	for (i = 0; i < itemnb; i++) {
-		if (x <= px && px < (x + drw->w) &&
-		    y <= py && py < (y + drw->h / itemnb))
-			return i;
-		y += drw->h / itemnb;
-	}
-	return -1;
-}
-
 void
 drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)
 {
@@ -130,14 +109,6 @@ drw_map(Drw *drw, Window win, int x, int y, unsigned int w, unsigned int h)
 		return;
 	XCopyArea(drw->dpy, drw->drawable, win, drw->gc, x, y, w, h, x, y);
 	XSync(drw->dpy, False);
-}
-
-void
-drw_movepointer(Drw *drw, int x, int y)
-{
-	if (drw == NULL)
-		return;
-	XWarpPointer(drw->dpy, None, drw->root, 0, 0, 0, 0, x, y);
 }
 
 void
