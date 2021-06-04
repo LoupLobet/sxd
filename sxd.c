@@ -361,13 +361,7 @@ winsetup(XWindowAttributes *pwa)
 			for (i = 0; i < n; i++)
 				if (INTERSECT(px, py, 1, 1, info[i]))
 					break;
-
-		if (usepointer) {
-			if (drw_getpointer(drw, &px, &py))
-				error("cannot query pointer");
-			x = px + href * x - !href * w / 2;
-			y = py + vref * y - !vref * h / 2;
-		} else {
+		if (!usepointer) {
 			if (href)
 				/* expand x and h with *ref = +- 1 to understand */
 				x = info[i].x_org + x + ((1 - href) / 2) *
@@ -384,26 +378,26 @@ winsetup(XWindowAttributes *pwa)
 	} else
 #endif
 	{
-		if (XGetWindowAttributes(dpy, pwin, pwa))
+		if (!XGetWindowAttributes(dpy, pwin, pwa))
 			error("could not get window attributes: 0x%lx", pwin);
-		if (usepointer) {
-			if (drw_getpointer(drw, &px, &py))
-				error("cannot query pointer");
-			x = px + href * x - !href * w / 2;
-			y = py + vref * y - !vref * h / 2;
-		} else {
+		if (!usepointer) {
 			if (href)
 				/* expand x and y with *ref = +- 1 to understand */
-				x = info[i].x_org + x + ((1 - href) / 2) *
-				    (pwa->width - w - 2 * x);
+				x = x + ((1 - href) / 2) * (pwa->width - w - 2 * x);
 			else
-				x = info[i].x_org + (pwa->width - w) / 2;
+				x = (pwa->width - w) / 2;
 			if (vref)
-				y = info[i].y_org + y + ((1 - vref) / 2) *
-				    (pwa->height - h - 2 * y);
+				y = y + ((1 - vref) / 2) * (pwa->height - h - 2 * y);
 			else
-				y = info[i].y_org + (pwa->height - h) / 2;
+				y = (pwa->height - h) / 2;
 		}
+	}
+	if (usepointer) {
+		printf("%d\t%d\n", x, y);
+		if (drw_getpointer(drw, &px, &py))
+			error("cannot query pointer");
+		x = px + href * x - !href * w / 2;
+		y = py + vref * y - !vref * h / 2;
 	}
 	drw_resize(drw, x + borderpx, y + borderpx, w, h);
 
