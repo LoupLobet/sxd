@@ -350,7 +350,8 @@ winsetup(XWindowAttributes *pwa)
 			/* find the xinerama screen with which the sindow intersects most. */
 			if (XGetWindowAttributes(dpy, pw, pwa)) {
 				for (j = 0; j < n; j++)
-					if ((a = INTERSECT(pwa->x, pwa->y, pwa->width, pwa->height, info[j])) > area) {
+					if ((a = INTERSECT(pwa->x, pwa->y, pwa->width,
+					     pwa->height, info[j])) > area) {
 						area = a;
 						i = j;
 					}
@@ -369,11 +370,13 @@ winsetup(XWindowAttributes *pwa)
 		} else {
 			if (href)
 				/* expand x and h with *ref = +- 1 to understand */
-				x = info[i].x_org + x + ((1 - href) / 2) * (info[i].width - w - 2 * x);
+				x = info[i].x_org + x + ((1 - href) / 2) *
+				    (info[i].width - w - 2 * x);
 			else
 				x = info[i].x_org + (info[i].width - w) / 2;
 			if (vref)
-				y = info[i].y_org + y + ((1 - vref) / 2) * (info[i].height - h - 2 * y);
+				y = info[i].y_org + y + ((1 - vref) / 2) *
+				    (info[i].height - h - 2 * y);
 			else
 				y = info[i].y_org + (info[i].height - h) / 2;
 		}
@@ -381,6 +384,8 @@ winsetup(XWindowAttributes *pwa)
 	} else
 #endif
 	{
+		if (XGetWindowAttributes(dpy, pwin, pwa))
+			error("could not get window attributes: 0x%lx", pwin);
 		if (usepointer) {
 			if (drw_getpointer(drw, &px, &py))
 				error("cannot query pointer");
@@ -389,13 +394,15 @@ winsetup(XWindowAttributes *pwa)
 		} else {
 			if (href)
 				/* expand x and y with *ref = +- 1 to understand */
-				x = x + ((1 - href) / 2) * (pwa->width - w - 2 * x);
+				x = info[i].x_org + x + ((1 - href) / 2) *
+				    (pwa->width - w - 2 * x);
 			else
-				x = (pwa->width - w) / 2;
+				x = info[i].x_org + (pwa->width - w) / 2;
 			if (vref)
-				y = y + ((1 - vref) / 2) * (pwa->height - h - 2 * y);
+				y = info[i].y_org + y + ((1 - vref) / 2) *
+				    (pwa->height - h - 2 * y);
 			else
-				y = (pwa->height - h) / 2;
+				y = info[i].y_org + (pwa->height - h) / 2;
 		}
 	}
 	drw_resize(drw, x + borderpx, y + borderpx, w, h);
@@ -405,7 +412,7 @@ winsetup(XWindowAttributes *pwa)
 	swa.background_pixel = scheme[BG].pixel;
 	swa.event_mask = ExposureMask | StructureNotifyMask | ButtonPressMask |
 	                 ButtonReleaseMask | VisibilityChangeMask;
-	win = XCreateWindow(dpy, root, x, y, w, h, borderpx, CopyFromParent,
+	win = XCreateWindow(dpy, pwin, x, y, w, h, borderpx, CopyFromParent,
 	                    CopyFromParent, CopyFromParent, CWOverrideRedirect |
 			    CWBackPixel | CWEventMask, &swa);
 	XSetWindowBorder(dpy, win, scheme[BD].pixel);
