@@ -1,7 +1,7 @@
 /* See LICENCE file for copyright and licence details */
 
 static char *tabstr  = "        "; /* define a printable string for '\t' characters */
-static int overredir = 0;          /* override window redirection by the window manger */
+static int overredir = 1;          /* override window redirection by the window manger */
 static int keepontop = 0;          /* raise the window every time the visibility is obscured */
 static int mon       = -1;         /* monitor, < 0 mean doesn't use particular monitor */
 
@@ -16,8 +16,8 @@ static char *fontname = "GoMono Nerd Font:size=10";
 static int usepointer = 0;    /* use the corsor as a top-left reference (0|1) */
 static int href       = LEFT; /* horizontal reference (LEFT|CENTER|RIGH) */
 static int vref       = TOP;  /* vertical reference (TOP|CENTER|BOTTOM) */
-static int x          = 100;  /* x coordinates of the vref-href window corner */
-static int y          = 100;  /* y coordinates of the vref-href window corner */
+static int x          = 0;  /* x coordinates of the vref-href window corner */
+static int y          = 0;  /* y coordinates of the vref-href window corner */
 
 /* window geometry */
 static int gmymode    = AUTO; /* geometry mode (MANUAL|FIT) */
@@ -35,10 +35,22 @@ static const char *colornames[COLORNB] = {
 	[BD] = "#586e75",	/* border */
 };
 
-/* mouse buttons mapping */
-static Btn mouse[BUTTONNB] = {
-	/*           Event               Oneshot             Function            Arg */
-	[MOUSE1] = { ButtonRelease,      0,                  print,              { .s = "mouse1" } },
-	[MOUSE2] = { ButtonPress,        1,                  print,              { .s = "mouse2" } },
-	[MOUSE3] = { ButtonRelease,      0,                  spawn,              { .s = "mouse3" } },
+static char *menucmd[] = { "menu", NULL };
+
+/* mouse profiles */
+static char *selprofile = "clock";
+static Profile profiles[] = {
+	{ "default", {
+	/*  Button       Event             Oneshot   Function      Argument */
+		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "main1" } },
+		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "main2" } },
+		[MOUSE3] = { ButtonRelease,    0,        print,        { .s = "main3" } }, } },
+	{ "notification", {
+		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "notification1" } },
+		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "notification2" } },
+		[MOUSE3] = { ButtonRelease,    0,        print,        { .s = "notification3" } }, } },
+	{ "clock", {
+		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "clock1" } },
+		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "clock2" } },
+		[MOUSE3] = { ButtonRelease,    0,        spawn,        { .v = menucmd } }, } },
 };

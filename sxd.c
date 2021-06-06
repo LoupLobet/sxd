@@ -43,7 +43,12 @@ typedef struct {
 	int oneshot;
 	void (*func)(const Arg *);
 	const Arg arg;
-} Btn; /* mouse button */
+} Btn;
+
+typedef struct {
+	char *name;
+	Btn buttons[BUTTONNB];
+} Profile;
 
 static void	 cleanup(void);
 static Fnt	 createfont(const char *, FcPattern *);
@@ -68,6 +73,7 @@ static Drw *drw;
 static char *embed;
 static Line *lines;
 static Clr *scheme;
+static Btn *mouse;
 
 #include "config.h"
 
@@ -75,6 +81,15 @@ int
 main(int argc, char *argv[])
 {
 	XWindowAttributes wa;
+	int i;
+
+	/* select mouse profile */
+	for (i = 0; i < sizeof(profiles) / sizeof(Profile); i++) {
+		if (!strcmp(profiles[i].name, selprofile))
+			mouse = profiles[i].buttons;
+	}
+	if (mouse == NULL)
+		error("could not select mouse profile");
 
 	if (setlocale(LC_CTYPE, "") == NULL || !XSupportsLocale())
 		error("no locale support");
@@ -275,11 +290,11 @@ run(void)
 void spawn(const Arg *arg)
 {
 	if (fork() == 0) {
-			if (dpy)
-				close(ConnectionNumber(dpy));
-			setsid();
-			execvp(((char **)arg->v)[0], (char **)arg->v);
-			error("execvp %s", ((char **)arg->v)[0]);
+		if (dpy)
+			close(ConnectionNumber(dpy));
+		setsid();
+		execvp(((char **)arg->v)[0], (char **)arg->v);
+		error("execvp %s", ((char **)arg->v)[0]);
 	}
 }
 
