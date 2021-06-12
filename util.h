@@ -7,4 +7,4 @@ void	 error(const char *, ...);
 void	 warning(const char *, ...);
 void	*emalloc(unsigned int);
 void	*erealloc(void *, unsigned int);
-int 	 estrtol(const char *nptr, int base);
+int 	 estrtol(const char *, int);
