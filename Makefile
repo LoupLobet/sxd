@@ -1,6 +1,6 @@
 # See LICENCE file for copyright and licence details
 
-VERSION = 1.1
+VERSION = 2.0
 CC = cc
 PROGNAME = sxd
 PREFIX = /usr/local
