@@ -60,6 +60,7 @@ static void	 readlines(FILE *);
 static char	*replacetabs(char *, char *);
 static void	 run(void);
 static void	 spawn(const Arg *);
+static void	 usage(void);
 static void	 windraw(void);
 static void	 winsetup(XWindowAttributes *);
 
@@ -71,6 +72,7 @@ static int screen;
 static Display *dpy;
 static Drw *drw;
 static char *embed;
+static char *geometry;
 static Line *lines;
 static Clr *scheme;
 static Btn *mouse;
@@ -83,9 +85,80 @@ main(int argc, char *argv[])
 	XWindowAttributes wa;
 	int i;
 
+	for (i = 1; i < argc; i++) {
+		if (!strcmp(argv[i], "-ga"))		/* geometry mode: auto */
+			gmymode = AUTO;
+		else if (!strcmp(argv[i], "-gm"))	/* geometry mode: manual */
+			gmymode = MANUAL;
+		else if (!strcmp(argv[i], "-hc"))	/* horizontal reference: center */
+			href = CENTER;
+		else if (!strcmp(argv[i], "-hl"))	/* horizontal reference: left */
+			href = LEFT;
+		else if (!strcmp(argv[i], "-hr"))	/* horizontal reference: right */
+			href = RIGHT;
+		else if (!strcmp(argv[i], "-k"))	/* keep window on top */
+			keepontop = 1;
+		else if (!strcmp(argv[i], "-o"))	/* override window redirections */
+			overredir = 1;
+		else if (!strcmp(argv[i], "-p"))	/* use pointer as reference */
+			usepointer = 1;
+		else if (!strcmp(argv[i], "-tc"))	/* text position: center */
+			textpos = CENTER;
+		else if (!strcmp(argv[i], "-tl"))	/* text position: left */
+			textpos = LEFT;
+		else if (!strcmp(argv[i], "-tr"))	/* text position: right */
+			textpos = RIGHT;
+		else if (!strcmp(argv[i], "-u")) {	/* show usage */
+			usage();
+			puts("2");
+		} else if (!strcmp(argv[i], "-v")) {	/* show version */
+			puts("sxd-"VERSION);
+			exit(0);
+		} else if (!strcmp(argv[i], "-vb"))	/* vertical reference: bottom */
+			vref = BOTTOM;
+		else if (!strcmp(argv[i], "-vc"))	/* vertical reference: center */
+			vref = CENTER;
+		else if (!strcmp(argv[i], "-vt"))	/* vertical reference: top */
+			vref = TOP;
+		else if (i + 1 == argc)
+			usage();
+		else if (!strcmp(argv[i], "-bd"))	/* border color */
+			colornames[BD] = argv[++i];
+		else if (!strcmp(argv[i], "-bg"))	/* background color */
+			colornames[BG] = argv[++i];
+		else if (!strcmp(argv[i], "-bx"))	/* border width */
+			borderpx = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-fg"))	/* foreground color */
+			colornames[FG] = argv[++i];
+		else if (!strcmp(argv[i], "-ft"))	/* font */
+			fontname = argv[++i];
+		else if (!strcmp(argv[i], "-g"))	/* geometry - see XParseGeometry(3) */
+			geometry = argv[++i];
+		else if (!strcmp(argv[i], "-gx"))	/* window gaps */
+			gappx = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-h"))	/* window height */
+			h = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-lp"))	/* line padding */
+			linepadding = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-m"))	/* mouse profile */
+			mouseprofile = argv[++i];
+		else if (!strcmp(argv[i], "-t"))	/* tab string */
+			tabstr = argv[++i];
+		else if (!strcmp(argv[i], "-w"))	/* window width */
+			w = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-x"))	/* x coordinates */
+			x = estrtol(argv[++i], 10);
+		else if (!strcmp(argv[i], "-y"))	/* y coordinates */
+			y = estrtol(argv[++i], 10);
+		else {
+			puts("2");
+			usage();
+		}
+	}
+
 	/* select mouse profile */
 	for (i = 0; i < sizeof(profiles) / sizeof(Profile); i++) {
-		if (!strcmp(profiles[i].name, selprofile))
+		if (!strcmp(profiles[i].name, mouseprofile))
 			mouse = profiles[i].buttons;
 	}
 	if (mouse == NULL)
@@ -287,7 +360,8 @@ run(void)
 
 }
 
-void spawn(const Arg *arg)
+void
+spawn(const Arg *arg)
 {
 	if (fork() == 0) {
 		if (dpy)
@@ -296,6 +370,16 @@ void spawn(const Arg *arg)
 		execvp(((char **)arg->v)[0], (char **)arg->v);
 		error("execvp %s", ((char **)arg->v)[0]);
 	}
+}
+
+static void
+usage(void)
+{
+	fputs("usage: sxd [-kopuv] [-ga|-gm] [-hc|-hl|-hr] [-tc|-tl|-tr] [-vb|-vc|-vt]\n"
+	      "           [-bd color] [-bg color] [-bx pixel] [-fg color] [-ft font]\n"
+	      "           [-g geometry] [-gx pixel] [-h pixel] [-lp pixel] [-m profile]\n"
+	      "           [-t string] [-w pixel] [-x pixel] [-y pixel]\n", stderr);
+	exit(1);
 }
 
 static void
@@ -408,12 +492,16 @@ winsetup(XWindowAttributes *pwa)
 		}
 	}
 	if (usepointer) {
-		printf("%d\t%d\n", x, y);
 		if (drw_getpointer(drw, &px, &py))
 			error("cannot query pointer");
-		x = px + href * x - !href * w / 2;
-		y = py + vref * y - !vref * h / 2;
+		x = px + href * x - !href * w / 2 + !href * x - (href < 0) * w;
+		y = py + vref * y - !vref * h / 2 + !vref * y - (vref < 0) * h;
 	}
+
+	/* use a predefined geometry */
+	if (geometry != NULL)
+		XParseGeometry(geometry, &x, &y, &w, &h);
+
 	drw_resize(drw, x + borderpx, y + borderpx, w, h);
 
 	/* window setup */
