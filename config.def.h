@@ -41,7 +41,7 @@ static char *menucmd[] = { "menu", NULL };
 static char *mouseprofile = "clock";
 static Profile profiles[] = {
 	{ "default", {
-	/*  Button       Event             Oneshot   Function      Argument */
+	/*	Button       Event             Oneshot   Function      Argument */
 		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "main1" } },
 		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "main2" } },
 		[MOUSE3] = { ButtonRelease,    0,        print,        { .s = "main3" } }, } },
