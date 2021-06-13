@@ -3,108 +3,187 @@
 sxd \- Simple X Displayer
 .SH SYNOPSIS
 .B sxd
-.RB [ \-aw ]
-.RB [ \-ah ]
-.RB [ \-hl | \-hc | \-hr ]
-.RB [ \-s ]
-.RB [ \-vt | \-vc | \-vb ]
-.RB [ \-v ]
-.RB [ \-1
-.IR retstr ]
-.RB [ \-2
-.IR retstr ]
-.RB [ \-3
-.IR retstr ]
+.RB [ \-kopuv ]
+.RB [ \-ga | \-gm ]
+.RB [ \-hc | \-hl | \-hr ]
+.RB [ \-tc | \-tl | \-tr ]
+.RB [ \-vb | \-vc | \-vt ]
 .RB [ \-bd
 .IR color ]
 .RB [ \-bg
 .IR color ]
+.RB [ \-bx
+.IR pixel ]
 .RB [ \-fg
 .IR color ]
-.RB [ \-fm
+.RB [ \-ft
 .IR font ]
 .RB [ \-g
+.IR geometry ]
+.RB [ \-gx
 .IR pixel ]
+.RB [ \-h
+.IR pixel ]
+.RB [ \-lp
+.IR pixel ]
+.RB [ \-m
+.IR profile ]
 .RB [ \-t
-.IR sec ]
+.IR string ]
+.RB [ \-w
+.IR pixel ]
 .RB [ \-x
 .IR pixel ]
 .RB [ \-y
 .IR pixel ]
-.RB [ \-w
-.IR pixel ]
-.RB [ \-h
-.IR pixel ]
 .SH DESCRIPTION
-.B sxd
-is a text displayer for X, which reads some text lines from standard input,
-and prints them in a floating window. When a mouse button is pressed in the created window,
-a chosen string is printed in the standard output accordingly to the mouse button
-(i.e. mouse1, mouse2 or mouse3).
+sxd is a mouse-oriented, multi-purpose text displayer for X, which reads some text lines from standard input,
+and prints them in window. When a mouse button is pressed over the created window,
+a action is executed accordingly to the selected mouse profile (see -p option). Mouse profiles are defined by three Btn structures composed of the following fields:
+.RS
+.TF Oneshot
+.TP
+.B Event
+can be
+.IR ButtonPress
+or
+.IR ButtonRelease
+,and specifies the X event which executes the action.
+.TP
+.B Oneshot
+can be 0 or 1, and specifies if the button event close sxd. The associated action will be excuted before sxd terminates.
+.TP
+.B Func
+can be one of the defined functions in sxd.c (e.g.
+.IR print
+or
+.IR spawn)
+, that takes a 'const Arg *' as argument. The user can write custom functions to fit his needs.
+.TP
+.B Arg
+corresponds to one of the fileds of the Arg union. It can be
+.IR .f
+for a floating point number,
+.IR .i
+for a integer,
+.IR .u
+for an unsigned integer,
+.IR .s
+for a char pointer,
+.IR .v
+for a pointer of an undefined type.
+.RE
 
-.B sxd
-terminates after a mouse button is pressed without a specified mask (see config.h: WMMASK macro), or after a specified time in (s).
+Profiles are defined in the config.h file, embeded in the "profiles" array. A profile is written the following way:
 
-.B sxd
-can be configured with config.h - for default options - or using the command
-line options for more specific cases.
+.nf
+.eo
+{ "profile name", {
+	[MOUSE1] = { Event,    Oneshot,    Func,    { Arg = value } },
+	[MOUSE2] = { Event,    Oneshot,    Func,    { Arg = value } },
+	[MOUSE3] = { Event,    Oneshot,    Func,    { Arg = value } }, }
+},
+.ec
+.fi
+
+The sxd placement works with an horizontal and vertical "reference". Because the sxd window placement works with x,y coordinates, "references" are used to place 0,0 at the intersection the two references. Thoses references are:
+.RS
+.TF horizontal
+.TP
+.B horizontal
+possible values are
+.IR CENTER ,
+.IR LEFT ", and"
+.IR RIGHT ,
+and respectively represente: the horizontal center of the screen, the left border of the screen, and the right border of the screen.
+.TP
+.B vertical
+possible values are
+.IR BOTTOM ,
+.IR CENTER ", and"
+.IR TOP ,
+and respectively represente: the bottom border of the screen, the vertical center of the screen, and the top border of the screen.
+.RE
+
+The x,y coordinates are the distance in pixel between 0,0 and the projection of 0,0 on the window (e.g. if the horizontal reference is LEFT and, the vertical reference is CENTER, the x,y coordinates are the distance between the center of the left border of the screen, and the center of the left border of the window).
+.br
+The pointer can also be used as the 0,0 cordinates, in this case 0,0 is computed the same way (i.e. with the horizontal and vertical references), and then moved to the pointer.
+
 .SH OPTIONS
 .TP
-.B \-aw
-Adapt the window width to fit the text.
+.B \-k
+Keeps the window on the top of other windows.
 .TP
-.B \-ah
-Adapt the window height to fit the text.
+.B \-o
+Overrides redirections from the window manager.
 .TP
-.B \-hl | \-hc | \-hr
-Sets the horizontal reference to the left | the center | the right.
+.B \-p
+Sets the pointer as the 0,0 coordinates.
 .TP
-.B \-s
-Keep window with static size and coordinates.
+.B \-u
+Shows the sxd usage.
 .TP
 .B \-v
-Prints the sxd version.
+Shows the sxd version.
 .TP
-.B \-vt | \-vc | \-vb
-Sets the vertical reference to the top | the center | the bottom.
+.B \-ga|\-gm
+Sets the window geometry to automatic|manual, in automatic mode, the window width and height are computed to fit the text.
 .TP
-.BI \-1 " return string"
-Sets the returned string for a mouse1 button press.
+.B \-hc|\-hl|\-hr
+Sets the horizontal reference to the center|the left|the right border of the screen.
 .TP
-.BI \-2 " retstr"
-Sets the returned string for a mouse2 button press.
+.B \-tc|\-tl|\-tr
+Aligns the text with the center|the left|the right side of the window.
 .TP
-.BI \-3 " retstr"
-Sets the returned string for a mouse3 button press.
+.B \-vb|\-vc|\-vt
+Sets the vertical reference to the bottom|the center|the top border of the screen.
 .TP
-.BI \-bd " color"
-Sets the border color. The color has to be a 6 digit hexadecimal number string.
+.B \-bd " color"
+Sets the window border color. Supported formats are
+.IR #RGB ,
+.IR #RRGGBB .
 .TP
-.BI \-bg " color"
-Sets the background color. The color has to be a 6 digit hexadecimal number string.
+.B \-bg " color"
+Sets the window background color. Supported formats are
+.IR #RGB ,
+.IR #RRGGBB .
 .TP
-.BI \-fg " color"
-Sets the foreground color. The color has to be a 6 digit hexadecimal number string.
+.B \-bx " pixel"
+Sets the window border width.
 .TP
-.BI \-fm " font"
-Sets the " main" font.
+.B \-fg " color"
+Sets the window background color. Supported formats are
+.IR #RGB ,
+.IR #RRGGBB .
 .TP
-.BI \-g " pixel"
-Sets the inner window gap width in pixels.
+.B \-ft " font"
+Sets the text font.
 .TP
-.BI \-t " sec"
-Sets an optional timer to close the window after sec seconds.
+.B \-g " geometry"
+Sets the window geometry. The form is [=][<width>{xX}<height>][{+-}<xoffset>{+-}<yoffset>]. See XParseGeometry(3)
 .TP
-.BI \-x " pixel"
-Sets the x coordinate of the window accordingly to the selected horizontal
-reference (cf. \-hl | \-hc | \-hr).
+.B \-gx " pixel"
+Sets the gaps width around the text.
 .TP
-.BI \-y " pixel"
-Sets the y coordinate of the window accordingly to the selected vertical reference
-(cf. \-vt | \-vc | \-vb).
+.B \-h " pixel"
+Sets the window height.
 .TP
-.BI \-w " pixel"
+.B \-lp " pixel"
+Sets the padding between text lines.
+.TP
+.B \-m " profile"
+Sets the mouse profile to use.
+.TP
+.B \-t " string"
+Sets the string to replace tabs in the text.
+.TP
+.B \-w " pixel"
 Sets the window width.
 .TP
-.BI \-h " pixel"
-Sets the window height.
+.B \-x " pixel"
+Sets the window x coordinates.
+.TP
+.B \-y " pixel"
+Sets the window y coordinates.
+.SH SEE ALSO
+.IR 91menu(1)
