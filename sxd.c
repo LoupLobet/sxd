@@ -33,7 +33,7 @@ enum { MOUSE1, MOUSE2, MOUSE3, BUTTONNB };      /* mouse buttons */
 typedef union {
 	float f;
 	int i;
-	unsigned int ui;
+	unsigned int u;
 	char *s;
 	const void *v;
 } Arg;
@@ -71,7 +71,6 @@ static int linenb;
 static int screen;
 static Display *dpy;
 static Drw *drw;
-static char *embed;
 static char *geometry;
 static Line *lines;
 static Clr *scheme;
@@ -170,8 +169,7 @@ main(int argc, char *argv[])
 		error("cannot open display");
 	screen = DefaultScreen(dpy);
 	root = RootWindow(dpy, screen);
-	if (embed == NULL || !(pwin = estrtol(embed, 0)))
-		pwin = root;
+	pwin = root;
 	if (!XGetWindowAttributes(dpy, pwin, &wa))
 		error("could not get window attributes: 0x%lx", pwin);
 	drw = drw_create(dpy, pwin, screen, 0, 0, wa.width, wa.height);
@@ -315,6 +313,8 @@ run(void)
 
 	drw_setscheme(drw, scheme);
 	drw_setfont(drw, font);
+
+	XSync(dpy, False);
 	/* waiting for window mapping */
 	if (!overredir) {
 		do {
@@ -330,7 +330,6 @@ run(void)
 	while (!XNextEvent(dpy, &ev)) {
 		if (XFilterEvent(&ev, win))
 			continue;
-
 		switch (ev.type) {
 		case DestroyNotify:
 			if (ev.xdestroywindow.window != win)
@@ -519,6 +518,5 @@ winsetup(XWindowAttributes *pwa)
 		error("cannot open input device");
 	xic = XCreateIC(xim, XNInputStyle, XIMPreeditNothing | XIMStatusNothing,
 	                XNClientWindow, win, XNFocusWindow, win, NULL);
-	XMapWindow(dpy, win);
-	XSync(dpy, False);
+	XMapRaised(dpy, win);
 }
