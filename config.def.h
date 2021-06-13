@@ -35,22 +35,13 @@ static const char *colornames[COLORNB] = {
 	[BD] = "#586e75",	/* border */
 };
 
-static char *menucmd[] = { "menu", NULL };
-
 /* mouse profiles */
 static char *mouseprofile = "clock";
 static Profile profiles[] = {
+	/*	             Event             Oneshot   Function      Argument */
 	{ "default", {
-	/*	Button       Event             Oneshot   Function      Argument */
-		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "main1" } },
-		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "main2" } },
-		[MOUSE3] = { ButtonRelease,    0,        print,        { .s = "main3" } }, } },
-	{ "notification", {
-		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "notification1" } },
-		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "notification2" } },
-		[MOUSE3] = { ButtonRelease,    0,        print,        { .s = "notification3" } }, } },
-	{ "clock", {
-		[MOUSE1] = { ButtonRelease,    0,        print,        { .s = "clock1" } },
-		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "clock2" } },
-		[MOUSE3] = { ButtonPress,      0,        spawn,        { .v = menucmd } }, } },
+		[MOUSE1] = { ButtonRelease,    1,        print,        { .s = "button1" } },
+		[MOUSE2] = { ButtonPress,      1,        print,        { .s = "button2" } },
+		[MOUSE3] = { ButtonRelease,    1,        print,        { .s = "button3" } }, }
+	},
 };
