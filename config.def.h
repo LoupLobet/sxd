@@ -36,7 +36,7 @@ static const char *colornames[COLORNB] = {
 };
 
 /* mouse profiles */
-static char *mouseprofile = "clock";
+static char *mouseprofile = "default";
 static Profile profiles[] = {
 	/*	             Event             Oneshot   Function      Argument */
 	{ "default", {
