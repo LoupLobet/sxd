@@ -1,5 +1,5 @@
-`make`
+`$ make`
 
-`make install`
+`# make install`
 
-`man sxd`
+`$ man sxd`
